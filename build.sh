@@ -13,11 +13,12 @@ mkdir -p "$app/Contents/MacOS"
 for architecture in arm64 x86_64; do
     xcrun swiftc -swift-version 6 -O -parse-as-library \
         -sdk "$sdk" -target "$architecture-apple-macosx14.0" \
-        Sources/KeyboardHandoff/*.swift -o "$staging/KeyboardHandoff-$architecture"
+        KeyboardHandoff/*.swift Shared/*.swift -o "$staging/KeyboardHandoff-$architecture"
 done
 
 xcrun lipo -create "$staging/KeyboardHandoff-arm64" "$staging/KeyboardHandoff-x86_64" \
     -output "$app/Contents/MacOS/KeyboardHandoff"
+TARGET_BUILD_DIR="$app" EXECUTABLE_FOLDER_PATH=Contents/MacOS scripts/build-core.sh
 cp Info.plist "$app/Contents/Info.plist"
 codesign --sign - "$app"
 ditto "$app" ".build/Keyboard Handoff.app"
