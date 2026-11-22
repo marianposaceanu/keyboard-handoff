@@ -27,7 +27,7 @@ final class HandoffModel {
     private static let keyboardSetting = "keyboard"
 
     private let bluetooth = BluetoothKeyboards()
-    private let defaults = UserDefaults.standard
+    private let defaults = UserDefaults(suiteName: "local.keyboard-handoff")!
     private var identity: MacIdentity?
     private var discovery: NearbyMacs?
     private var peerKey: SymmetricKey?
