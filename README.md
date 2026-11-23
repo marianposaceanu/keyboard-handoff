@@ -2,9 +2,33 @@
 
 Send a Bluetooth Magic Keyboard between two awake Macs with the same shortcut on either Mac. Both Macs need macOS 14 or later and should be on the same local network.
 
+![Keyboard Handoff menu bar icon in its ready and sending states](docs/status-icons.png)
+
+The keyboard icon opens a native AppKit menu. **Hide Menu Bar Icon** closes that interface while the background core continues listening for incoming keyboards and handling **⌃⌥⌘K**. Reopen the app to bring the menu back. **Stop Handoff & Quit** ends both processes.
+
+[Contributing](CONTRIBUTING.md) · [Releases](RELEASING.md) · [CI](https://github.com/marianposaceanu/keyboard-handoff/actions/workflows/ci.yml)
+
+## Architecture
+
+```text
+    AppKit menu          keyboard-handoff-core <command>
+         │                         │
+         └────────────┬────────────┘
+              same-user Unix socket
+                      │
+       keyboard-handoff-core on this Mac
+         │                        │
+      Bluetooth                local network
+         │                 Bonjour + authenticated TLS
+    Magic Keyboard                │
+                        core on the other Mac
+```
+
+The core owns keyboard selection, peer trust, Bluetooth pairing, and the global shortcut. The menu and CLI send versioned requests over a private socket. Closing either client leaves the core running. The keyboard gets re-paired with the destination Mac after it accepts the offer.
+
 ## Build
 
-Use Xcode or Command Line Tools with Swift 6.
+Open `KeyboardHandoff.xcodeproj`, select **KeyboardHandoff → My Mac**, and press **⌘R**. To build a universal app for both Macs from the terminal, use Command Line Tools or Xcode with Swift 6.
 
 ```sh
 ./build.sh
@@ -27,8 +51,23 @@ Each Mac generates a local identity. The initial approval trusts the public key 
 
 The sending Mac waits for the other Mac to accept before releasing the keyboard. If the receiver confirms that it couldn’t connect, the sender attempts to recover the keyboard. macOS exposes pairing through IOBluetooth and the app uses an undocumented IOBluetooth selector to forget the keyboard on the sending Mac. A macOS update can affect this behavior. [Apple’s pairing API](https://developer.apple.com/documentation/iobluetooth/iobluetoothdevicepair)
 
-## Verify and release
+## Command line
 
-Run `./test.sh` to check the handoff messages over a local TLS connection and verify that a different peer key is rejected.
+The bundled core also acts as a client. With the app in Applications, use these commands from Terminal.
 
-The bundle uses semantic versions in `Info.plist`. Tag the matching commit with a `v` prefix, such as `v0.1.0`.
+```sh
+core="/Applications/Keyboard Handoff.app/Contents/MacOS/keyboard-handoff-core"
+"$core" status
+"$core" send
+"$core" stop
+```
+
+| Command | Effect |
+| --- | --- |
+| `status` | Prints the running core’s snapshot as JSON, or reports that it is stopped. |
+| `send` | Requests a transfer to the trusted Mac. Check `status` for the outcome. |
+| `stop` | Stops an idle core. Choose **Reconnect to Core** or reopen the app to start it again. |
+
+## Verification
+
+Run `scripts/check.sh` for peer-authentication tests, an isolated core/CLI lifecycle check, and verification of the signed universal bundle. A physical acceptance test requires two Macs and the wireless keyboard. Send it in both directions, type on each destination, hide the icon, then send again with the global shortcut.
