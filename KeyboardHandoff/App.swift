@@ -39,14 +39,7 @@ final class StatusMenu: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let snapshot = try await Task.detached {
                     do { return try CoreIPC.request(command) }
                     catch IPCError.offline where start {
-                        let core = Process()
-                        core.executableURL = Bundle.main.executableURL?.deletingLastPathComponent()
-                            .appendingPathComponent("keyboard-handoff-core")
-                        core.arguments = ["--serve"]
-                        core.standardInput = FileHandle.nullDevice
-                        core.standardOutput = FileHandle.nullDevice
-                        core.standardError = FileHandle.nullDevice
-                        try core.run()
+                        try Self.launchCore()
                         for _ in 0..<60 {
                             try await Task.sleep(for: .milliseconds(100))
                             do { return try CoreIPC.request(.status) } catch IPCError.offline { continue }
@@ -59,6 +52,36 @@ final class StatusMenu: NSObject, NSApplicationDelegate, NSMenuDelegate {
             } catch {
                 if revision == current { display(Snapshot(status: error.localizedDescription, error: error.localizedDescription)) }
             }
+        }
+    }
+
+    private nonisolated static func launchCore() throws {
+        guard let executable = Bundle.main.executableURL?.deletingLastPathComponent()
+            .appendingPathComponent("keyboard-handoff-core") else {
+            throw IPCError.message("The bundled core is missing.")
+        }
+        var attributes: posix_spawnattr_t?
+        guard posix_spawnattr_init(&attributes) == 0 else { throw IPCError.message("Cannot set up the core session.") }
+        defer { posix_spawnattr_destroy(&attributes) }
+        guard posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT)) == 0 else {
+            throw IPCError.message("Cannot detach the core session.")
+        }
+        var actions: posix_spawn_file_actions_t?
+        guard posix_spawn_file_actions_init(&actions) == 0 else { throw IPCError.message("Cannot set up the core streams.") }
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        for fd: Int32 in 0...2 {
+            guard posix_spawn_file_actions_addopen(&actions, fd, "/dev/null", O_RDWR, 0) == 0 else {
+                throw IPCError.message("Cannot redirect core streams.")
+            }
+        }
+        var argv = [strdup(executable.path), strdup("--serve"), nil]
+        defer { argv.forEach { free($0) } }
+        var pid: pid_t = 0
+        guard posix_spawn(&pid, executable.path, &actions, &attributes, &argv, environ) == 0 else {
+            throw IPCError.message("Couldn’t launch the bundled core.")
+        }
+        DispatchQueue.global(qos: .utility).async { [pid] in
+            while waitpid(pid, nil, 0) < 0 && errno == EINTR {}
         }
     }
 
