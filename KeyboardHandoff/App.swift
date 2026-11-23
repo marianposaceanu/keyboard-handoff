@@ -66,11 +66,7 @@ final class StatusMenu: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard state != snapshot else { return }
         state = snapshot
         menu.removeAllItems()
-        let keyboard = NSImage(systemSymbolName: snapshot.busy ? "keyboard.badge.ellipsis" : "keyboard",
-                               accessibilityDescription: snapshot.busy ? "Sending keyboard" : "Keyboard Handoff")
-            ?? NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Keyboard Handoff")
-        keyboard?.isTemplate = true
-        item.button?.image = keyboard?.withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
+        item.button?.image = StatusIcon.image(sending: snapshot.busy)
         item.button?.toolTip = snapshot.status
 
         if let peer = snapshot.peer {
