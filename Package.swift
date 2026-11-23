@@ -6,7 +6,8 @@ let package = Package(
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(name: "KeyboardHandoff", path: ".", exclude: [
-            "KeyboardHandoff", "Tests", "scripts", "Info.plist", "build.sh", "test.sh", "README.md"
+            "KeyboardHandoff", "Tests", "scripts", "docs", "Info.plist",
+            "build.sh", "test.sh", "README.md", "CONTRIBUTING.md", "RELEASING.md"
         ], sources: ["Core", "Shared"]),
         .testTarget(name: "KeyboardHandoffTests", dependencies: ["KeyboardHandoff"])
     ]
